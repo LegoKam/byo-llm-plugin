@@ -4,6 +4,8 @@ An Edge Delivery Services / Experience Workspace plugin that generates or rewrit
 
 Plugin files live in [`tools/byo-llm/`](tools/byo-llm/).
 
+![BYO LLM panel with a hero block selected](docs/readme/plugin-panel.jpg)
+
 ## Environments
 
 - Preview: https://main--byo-llm-plugin--LegoKam.aem.page/
@@ -68,6 +70,8 @@ Open **Panels → Extensions → BYO LLM**.
 2. Choose a **Provider**, set **Endpoint** and **Model**, and paste the **API key**.
 3. Use **Test connection**, then **Save**.
 
+![Plugin Settings: provider, endpoint, model, and API key](docs/readme/settings.jpg)
+
 Settings are written to the organisation config’s **secrets** sheet as:
 
 | key                | example                          |
@@ -79,6 +83,8 @@ Settings are written to the organisation config’s **secrets** sheet as:
 
 You can also edit that sheet directly at [da.live/config#/legokam/](https://da.live/config#/legokam/) (org config, **secrets** tab). Header row must be `key` / `value`.
 
+![Organisation secrets sheet with byo-llm.* keys](docs/readme/secrets.png)
+
 **Security note:** anyone who can read the org config can read the API key. The browser sends the key to the LLM. Prefer a gateway that enforces its own auth if that is not acceptable.
 
 If the config editor tab was already open when you saved from the plugin, reload it before pressing Save there — a stale empty sheet can overwrite the plugin’s rows.
@@ -86,11 +92,13 @@ If the config editor tab was already open when you saved from the plugin, reload
 ## Use
 
 1. Select a block or text in the document (or leave nothing selected to create new content).
-2. For a block, the panel shows the block name and counts (e.g. `cards · 7 text · 7 assets`).
+2. For a block, the panel shows the block name and counts (e.g. `hero · 1 text · 1 asset`).
 3. Choose a scope if needed: **Auto**, **Text**, **Assets**, or **Both**.
 4. Describe what to do, or use a preset (Improve writing, Shorten, Expand, …).
 5. Optionally **Attach files** for brand or reference context.
 6. **Generate**, review the short summary, then **Replace … block** / **Replace selection** / **Insert**.
+
+![Generated result ready to replace the hero block](docs/readme/generate-result.jpg)
 
 **Assets** scope updates image alt text (and can remove images if asked). It does not generate new images.
 
