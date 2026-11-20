@@ -1,9 +1,14 @@
 // eslint-disable-next-line import/no-unresolved
 import DA_SDK from 'https://da.live/nx/utils/sdk.js';
-import { PROVIDERS, generate, toSafeHtml } from './llm.js';
 import {
   ACCEPT, MAX_FILES, formatBytes, readAttachment,
 } from './attachments.js';
+import {
+  blockAtIndex, parseSelection, inferScope, buildBlockPrompt,
+} from './block-model.js';
+import {
+  PROVIDERS, generate, toSafeHtml, restoreAssets,
+} from './llm.js';
 import { loadSettings, saveSettings } from './secrets.js';
 
 const PRESETS = {
@@ -12,7 +17,15 @@ const PRESETS = {
   Expand: 'Expand this with more detail.',
   Summarise: 'Summarise this in a short paragraph.',
   'Fix grammar': 'Fix spelling and grammar. Change nothing else.',
+  'Update alt text': 'Write clearer alt text for the images. Leave the copy unchanged.',
 };
+
+const SCOPES = [
+  { id: 'auto', label: 'Auto' },
+  { id: 'text', label: 'Text' },
+  { id: 'assets', label: 'Assets' },
+  { id: 'both', label: 'Both' },
+];
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -61,9 +74,13 @@ function isConfigured(settings) {
       provider: '', endpoint: '', model: '', apiKey: '',
     },
     selection: '',
+    block: null,
+    liveHtml: '',
+    liveBlockIndex: null,
+    scope: 'auto',
     attachments: [],
     result: '',
-    resultSelection: '',
+    resultMeta: null,
     controller: null,
     loadFailed: false,
   };
@@ -71,7 +88,8 @@ function isConfigured(settings) {
   /* ---------- Generate view ---------- */
 
   const notice = el('p', { class: 'notice', hidden: true });
-  const selectionPreview = el('p', { class: 'selection-preview' });
+  const selectionCard = el('div', { class: 'selection-card empty' });
+  const scopeChips = el('div', { class: 'chips scope-chips', hidden: true });
   const prompt = el('textarea', {
     id: 'prompt',
     rows: '4',
@@ -87,11 +105,62 @@ function isConfigured(settings) {
   const resultActions = el('div', { class: 'actions' });
   const resultSection = el('section', { class: 'result', hidden: true }, el('h2', {}, 'Result'), resultPreview, resultActions);
 
+  function resolveBlock() {
+    const fromLive = blockAtIndex(state.liveHtml, state.liveBlockIndex);
+    if (fromLive) return fromLive;
+    return parseSelection(state.selection);
+  }
+
+  function renderScope() {
+    const { block } = state;
+    scopeChips.hidden = !block;
+    if (!block) return;
+    scopeChips.replaceChildren(...SCOPES.map(({ id, label }) => {
+      const disabled = (id === 'text' && !block.textCount)
+        || (id === 'assets' && !block.assetTotal);
+      return el('button', {
+        type: 'button',
+        class: `chip${state.scope === id ? ' is-active' : ''}`,
+        disabled,
+        onclick: () => {
+          state.scope = id;
+          renderScope();
+        },
+      }, label);
+    }));
+  }
+
   function renderSelection() {
-    const text = state.selection ? htmlToText(state.selection) : '';
-    selectionPreview.textContent = text
-      || 'Nothing selected. Select content in the page to work on it, or just describe what to create.';
-    selectionPreview.classList.toggle('empty', !text);
+    state.block = resolveBlock();
+    selectionCard.classList.toggle('empty', !state.block && !state.selection);
+    if (state.block) {
+      const { block } = state;
+      const bits = [];
+      if (block.textCount) bits.push(`${block.textCount} text`);
+      if (block.assetTotal) bits.push(`${block.assetTotal} asset${block.assetTotal === 1 ? '' : 's'}`);
+      const preview = block.cells.map((c) => c.text).filter(Boolean).join(' · ')
+        || block.cells.flatMap((c) => c.assets.map((a) => a.alt || 'image')).join(' · ');
+      const meta = el('div', { class: 'selection-meta' });
+      meta.append(
+        el('span', { class: 'block-name' }, block.label),
+        el('span', { class: 'block-fields' }, bits.join(' · ') || 'empty'),
+      );
+      selectionCard.replaceChildren(
+        meta,
+        el('p', { class: 'selection-preview' }, preview || 'Block selected.'),
+      );
+    } else if (state.selection) {
+      selectionCard.replaceChildren(
+        el('p', { class: 'selection-preview' }, htmlToText(state.selection)),
+      );
+    } else {
+      selectionCard.replaceChildren(el(
+        'p',
+        { class: 'selection-preview' },
+        'Nothing selected. Select a block or text in the page, or just describe what to create.',
+      ));
+    }
+    renderScope();
   }
 
   async function refreshSelection() {
@@ -133,34 +202,70 @@ function isConfigured(settings) {
     setStatus(status, errors.join(' '), 'error');
   }
 
-  function send(html, message) {
-    actions.sendHTML(html);
-    setStatus(status, message, 'success');
+  async function applyResult(mode) {
+    const { result, resultMeta } = state;
+    if (!result) return;
+    if (mode === 'replace-block' && resultMeta?.block) {
+      const expected = resultMeta.liveHtml != null && Number.isInteger(resultMeta.blockIndex)
+        ? { html: resultMeta.liveHtml, blockIndex: resultMeta.blockIndex }
+        : undefined;
+      const outcome = await actions.sendHTML(result, { replace: true, expected });
+      if (outcome && outcome.ok === false) {
+        setStatus(status, outcome.message || outcome.error || 'Could not replace the block.', 'error');
+        return;
+      }
+      setStatus(status, `Updated the ${resultMeta.block.label} block (${resultMeta.scope}).`, 'success');
+      return;
+    }
+    if (mode === 'replace-selection') {
+      actions.sendHTML(result);
+      setStatus(status, 'Replaced the current selection.', 'success');
+      return;
+    }
+    if (mode === 'insert-after') {
+      actions.sendHTML(`${resultMeta?.selectionHtml || ''}${result}`);
+      setStatus(status, 'Inserted after the selection.', 'success');
+      return;
+    }
+    actions.sendHTML(result);
+    setStatus(status, 'Inserted at the cursor.', 'success');
   }
 
   function renderResult() {
     resultSection.hidden = !state.result;
     // state.result has been through toSafeHtml().
     resultPreview.innerHTML = state.result;
-    const buttons = state.resultSelection
-      ? [
+    const meta = state.resultMeta;
+    let buttons;
+    if (meta?.block) {
+      buttons = [
         el('button', {
           type: 'button',
           class: 'primary',
-          onclick: () => send(state.result, 'Replaced the current selection.'),
+          onclick: () => applyResult('replace-block'),
+        }, `Replace ${meta.block.name} block`),
+      ];
+    } else if (meta?.selectionHtml) {
+      buttons = [
+        el('button', {
+          type: 'button',
+          class: 'primary',
+          onclick: () => applyResult('replace-selection'),
         }, 'Replace selection'),
         el('button', {
           type: 'button',
-          onclick: () => send(`${state.resultSelection}${state.result}`, 'Inserted after the selection.'),
+          onclick: () => applyResult('insert-after'),
         }, 'Insert after selection'),
-      ]
-      : [
+      ];
+    } else {
+      buttons = [
         el('button', {
           type: 'button',
           class: 'primary',
-          onclick: () => send(state.result, 'Inserted at the cursor.'),
+          onclick: () => applyResult('insert'),
         }, 'Insert at cursor'),
       ];
+    }
     resultActions.replaceChildren(...buttons);
   }
 
@@ -183,18 +288,48 @@ function isConfigured(settings) {
       return;
     }
     await refreshSelection();
-    const { selection } = state;
+    const {
+      block, selection: selectionHtml, liveHtml, liveBlockIndex: blockIndex,
+    } = state;
+    let promptPayload = { instruction, selection: selectionHtml, attachments: state.attachments };
+    let scope = null;
+    if (block) {
+      const built = buildBlockPrompt(block, state.scope, instruction);
+      scope = built.scope;
+      promptPayload = {
+        instruction: built.instruction,
+        selection: built.selection,
+        attachments: state.attachments,
+      };
+    }
     state.controller = new AbortController();
     generateBtn.textContent = 'Stop';
-    setStatus(status, `Generating with ${state.settings.model || PROVIDERS[state.settings.provider].label}…`);
+    const modelLabel = state.settings.model || PROVIDERS[state.settings.provider].label;
+    const scopeNote = block ? ` · ${scope} on ${block.name}` : '';
+    setStatus(status, `Generating with ${modelLabel}${scopeNote}…`);
     try {
       const raw = await generate(
         state.settings,
-        { instruction, selection, attachments: state.attachments },
+        promptPayload,
         { signal: state.controller.signal },
       );
-      state.result = toSafeHtml(raw);
-      state.resultSelection = selection;
+      let html = toSafeHtml(raw, { keepAssets: !!block });
+      if (block && scope === 'text') html = restoreAssets(block.html, html);
+      // Prefer a single outer block div when the model wrapped extras.
+      if (block) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const match = [...doc.body.querySelectorAll('div')]
+          .find((n) => n.classList.contains(block.name));
+        if (match) html = match.outerHTML;
+      }
+      state.result = html;
+      state.resultMeta = {
+        block,
+        scope: scope || (block ? inferScope(instruction, block) : null),
+        selectionHtml,
+        liveHtml,
+        blockIndex,
+      };
       renderResult();
       setStatus(status);
       if (!state.result) setStatus(status, 'The LLM returned nothing that can be inserted.', 'error');
@@ -249,7 +384,8 @@ function isConfigured(settings) {
         el('h2', {}, 'Selection'),
         el('button', { type: 'button', class: 'quiet', onclick: refreshSelection }, 'Refresh'),
       ),
-      selectionPreview,
+      selectionCard,
+      scopeChips,
     ),
     el(
       'section',
@@ -413,6 +549,14 @@ function isConfigured(settings) {
     e.preventDefault();
     if (e.dataTransfer?.files?.length) addFiles([...e.dataTransfer.files]);
   });
+
+  if (sdk.capabilities?.liveDocument === 1 && typeof actions.subscribeLiveDocument === 'function') {
+    actions.subscribeLiveDocument(({ html, selection }) => {
+      state.liveHtml = html || '';
+      state.liveBlockIndex = Number.isInteger(selection?.blockIndex) ? selection.blockIndex : null;
+      renderSelection();
+    });
+  }
 
   renderSelection();
   refreshSelection();

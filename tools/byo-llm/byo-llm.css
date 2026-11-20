@@ -180,6 +180,16 @@ button.quiet {
   font-weight: 400;
 }
 
+.chip.is-active {
+  border-color: var(--accent);
+  background: #eef2ff;
+  color: var(--accent);
+}
+
+.scope-chips {
+  margin-top: 2px;
+}
+
 /* Generate view */
 
 .notice,
@@ -200,23 +210,46 @@ button.quiet {
   color: var(--success);
 }
 
-.selection-preview {
-  display: -webkit-box;
-  max-height: 6.2em;
-  overflow: hidden;
+.selection-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 10px;
   border-radius: var(--radius);
   background: var(--surface);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  line-clamp: 4;
-  overflow-wrap: anywhere;
 }
 
-.selection-preview.empty {
-  display: block;
-  max-height: none;
+.selection-card.empty {
   color: var(--text-subtle);
+}
+
+.selection-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.block-name {
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.block-fields {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.selection-preview {
+  display: -webkit-box;
+  max-height: 4.6em;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow-wrap: anywhere;
 }
 
 .attach {
