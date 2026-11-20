@@ -4,7 +4,7 @@ An Edge Delivery Services / Experience Workspace plugin that generates or rewrit
 
 Plugin files live in [`tools/byo-llm/`](tools/byo-llm/).
 
-![BYO LLM panel with a hero block selected](docs/readme/plugin-panel.jpg)
+![BYO LLM panel with a hero block selected](docs/readme/plugin-panel.png)
 
 ## Environments
 
@@ -70,7 +70,7 @@ Open **Panels → Extensions → BYO LLM**.
 2. Choose a **Provider**, set **Endpoint** and **Model**, and paste the **API key**.
 3. Use **Test connection**, then **Save**.
 
-![Plugin Settings: provider, endpoint, model, and API key](docs/readme/settings.jpg)
+![Plugin Settings: provider, endpoint, model, and API key](docs/readme/settings.png)
 
 Settings are written to the organisation config’s **secrets** sheet as:
 
@@ -98,7 +98,7 @@ If the config editor tab was already open when you saved from the plugin, reload
 5. Optionally **Attach files** for brand or reference context.
 6. **Generate**, review the short summary, then **Replace … block** / **Replace selection** / **Insert**.
 
-![Generated result ready to replace the hero block](docs/readme/generate-result.jpg)
+![Generated result ready to replace the hero block](docs/readme/generate-result.png)
 
 **Assets** scope updates image alt text (and can remove images if asked). It does not generate new images.
 
