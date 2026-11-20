@@ -306,7 +306,10 @@ function isConfigured(settings) {
     const provider = providerSelect.value;
     const endpoint = endpointInput.value.trim();
     const entered = keyInput.value.trim();
-    const sameTarget = provider === state.settings.provider && endpoint === state.settings.endpoint;
+    // A blank endpoint means the provider's default, so compare what is actually called.
+    const target = (value) => (value || PROVIDERS[provider].endpoint).replace(/\/+$/, '');
+    const sameTarget = provider === state.settings.provider
+      && target(endpoint) === target(state.settings.endpoint);
     const keptKey = sameTarget ? state.settings.apiKey : '';
     return {
       provider,
