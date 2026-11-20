@@ -226,10 +226,16 @@ function isConfigured(settings) {
     setStatus(status, 'Inserted at the cursor.', 'success');
   }
 
+  function resultSummary(html) {
+    const text = htmlToText(html);
+    if (!text) return 'Ready to apply.';
+    return text.length > 160 ? `${text.slice(0, 157).trimEnd()}…` : text;
+  }
+
   function renderResult() {
     resultSection.hidden = !state.result;
-    // state.result has been through toSafeHtml().
-    resultPreview.innerHTML = state.result;
+    // Full HTML is kept in state.result for apply; the preview is a short summary.
+    resultPreview.textContent = resultSummary(state.result);
     const meta = state.resultMeta;
     let buttons;
     if (meta?.block) {

@@ -290,45 +290,22 @@ button.quiet {
   flex: none;
 }
 
+.result,
 .result-preview {
-  max-height: 50vh;
-  overflow: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.result-preview {
+  display: -webkit-box;
+  max-height: 4.6em;
+  overflow: hidden;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow-wrap: anywhere;
-}
-
-.result-preview > :first-child {
-  margin-top: 0;
-}
-
-.result-preview > :last-child {
-  margin-bottom: 0;
-}
-
-.result-preview :is(p, ul, ol, blockquote, table, pre) {
-  margin: 0 0 0.75em;
-}
-
-.result-preview :is(h1, h2, h3, h4, h5, h6) {
-  margin: 0 0 0.5em;
-  font-size: 15px;
-  color: var(--text);
-}
-
-.result-preview :is(ul, ol) {
-  padding-left: 1.4em;
-}
-
-.result-preview table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.result-preview :is(th, td) {
-  padding: 4px 6px;
-  border: 1px solid var(--border);
-  text-align: left;
-  vertical-align: top;
+  word-break: break-word;
 }
