@@ -138,17 +138,12 @@ function isConfigured(settings) {
       const bits = [];
       if (block.textCount) bits.push(`${block.textCount} text`);
       if (block.assetTotal) bits.push(`${block.assetTotal} asset${block.assetTotal === 1 ? '' : 's'}`);
-      const preview = block.cells.map((c) => c.text).filter(Boolean).join(' · ')
-        || block.cells.flatMap((c) => c.assets.map((a) => a.alt || 'image')).join(' · ');
       const meta = el('div', { class: 'selection-meta' });
       meta.append(
         el('span', { class: 'block-name' }, block.label),
         el('span', { class: 'block-fields' }, bits.join(' · ') || 'empty'),
       );
-      selectionCard.replaceChildren(
-        meta,
-        el('p', { class: 'selection-preview' }, preview || 'Block selected.'),
-      );
+      selectionCard.replaceChildren(meta);
     } else if (state.selection) {
       selectionCard.replaceChildren(
         el('p', { class: 'selection-preview' }, htmlToText(state.selection)),
